@@ -1,0 +1,1 @@
+pyinstaller --onefile --console --icon icon.ico "Music Player.py"
