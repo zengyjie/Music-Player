@@ -109,22 +109,20 @@ def play_youtube_audio(url, volume):
         sys.stdout.write(f"{ERROR}[error]: ensure yt-dlp and ffmpeg are installed and in your PATH{RESET}\n")
     except KeyboardInterrupt:
         sys.stdout.write(f"{ERROR}[stopped]: playback interrupted{RESET}\n")
+
 def fetch_video_titles(urls):
     titles = []
     for url in urls:
         try:
-            # Get JSON metadata to determine if it's a playlist
             command_check = ["yt-dlp", "--flat-playlist", "--dump-single-json", url]
             result_check = subprocess.run(command_check, capture_output=True, text=True)
             
             if result_check.returncode == 0:
                 metadata = json.loads(result_check.stdout)
                 if "entries" in metadata:
-                    # URL is a playlist, get the playlist title
                     playlist_title = metadata.get("title", "unknown playlist title")
-                    titles.append(playlist_title)
+                    titles.append("[playlist] " + playlist_title)
                 else:
-                    # URL is a single video, get the video title
                     command_video = ["yt-dlp", "--get-title", url]
                     result_video = subprocess.run(command_video, capture_output=True, text=True)
                     if result_video.returncode == 0:
@@ -134,12 +132,24 @@ def fetch_video_titles(urls):
             else:
                 titles.append("unknown title")
         except FileNotFoundError:
-            sys.stdout.write("[ERROR][missing]: yt-dlp is not installed or in your PATH\n")
+            sys.stdout.write("[error][missing]: yt-dlp is not installed or in your PATH\n")
             titles.append("unknown title")
         except json.JSONDecodeError:
-            sys.stdout.write("[ERROR]: Failed to parse JSON metadata\n")
+            sys.stdout.write("[error]: Failed to parse JSON metadata\n")
             titles.append("unknown title")
     return titles
+
+def list_video_titles(url, playlist_title):
+    sys.stdout.write(f"{INFO}fetching titles...{RESET}\n")
+    try:
+        command_video = ["yt-dlp", "--get-title", url]
+        result_video = subprocess.run(command_video, capture_output=True, text=True)
+        if result_video.returncode == 0:
+            sys.stdout.write(f"{INFO}{playlist_title}:\n{result_video.stdout.strip()}{RESET}\n")
+        else:
+            sys.stdout.write("unknown title")
+    except FileNotFoundError:
+            sys.stdout.write("[error][missing]: yt-dlp is not installed or in your PATH\n")
 
 def clean_title(title):
     return re.sub(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}', '', title).strip()
@@ -264,6 +274,7 @@ def main():
                 sys.stdout.write(f"{INFO}-add [url]                 : add a track{RESET}\n")
                 sys.stdout.write(f"{INFO}-remove [number,number(?)] : delete a track by its number{RESET}\n")
                 sys.stdout.write(f"{INFO}-ls                        : show all tracks{RESET}\n")
+                sys.stdout.write(f"{INFO}-ls [number]               : show all tracks in a playlist{RESET}\n")
                 sys.stdout.write(f"{INFO}-volume [number]           : set audio volume (0 to 200){RESET}\n")
                 sys.stdout.write(f"{INFO}-download [url,url(?)]     : download tracks as mp3{RESET}\n")
                 sys.stdout.write(f"{INFO}-exit                      : close the program{RESET}\n")
@@ -296,8 +307,24 @@ def main():
                 except ValueError:
                     sys.stdout.write(f"{ERROR}[error]: provide a valid number after -remove{RESET}\n")
 
-            elif choice == "-ls":
-                reprint_entries(url_file)
+            elif choice.startswith("-ls"):
+                if choice == "-ls":
+                    reprint_entries(url_file)
+                else:
+                    try:
+                        _, entry_number = choice.split() 
+                        entry_number = int(entry_number)
+                        if 1 <= entry_number <= len(urls):
+                            selected_title = urls[entry_number - 1][1]
+                            selected_url = urls[entry_number - 1][0]
+                            if selected_title.startswith("[playlist]"):
+                                list_video_titles(selected_url, selected_title)
+                            else:
+                                sys.stdout.write(f"{ERROR}[error]: provide a number of a playlist{RESET}\n")
+                        else:
+                            sys.stdout.write(f"{ERROR}[error]: invalid track number{RESET}\n")
+                    except ValueError:
+                        sys.stdout.write(f"{ERROR}[error]: provide a valid number after -ls{RESET}\n")
 
             elif choice.startswith("-volume"):
                 try:
