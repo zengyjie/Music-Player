@@ -1,10 +1,8 @@
-import os, subprocess, sys, re
+import os, subprocess, sys, re, json
 from pathlib import Path
 from time import sleep
 
 from colorama import Fore, Style, init
-from tqdm import tqdm
-
 
 init()
 
@@ -111,33 +109,35 @@ def play_youtube_audio(url, volume):
         sys.stdout.write(f"{ERROR}[error]: ensure yt-dlp and ffmpeg are installed and in your PATH{RESET}\n")
     except KeyboardInterrupt:
         sys.stdout.write(f"{ERROR}[stopped]: playback interrupted{RESET}\n")
-
-import subprocess
-import sys
-
 def fetch_video_titles(urls):
     titles = []
     for url in urls:
         try:
-            command_check_playlist = ["yt-dlp", "--flat-playlist", "--print", "title", url]
-            result_check = subprocess.run(command_check_playlist, capture_output=True, text=True)
+            # Get JSON metadata to determine if it's a playlist
+            command_check = ["yt-dlp", "--flat-playlist", "--dump-single-json", url]
+            result_check = subprocess.run(command_check, capture_output=True, text=True)
             
-            if result_check.returncode == 0 and "entries" in result_check.stdout.lower():
-                command_get_playlist_title = ["yt-dlp", "--playlist-title", url]
-                result_playlist = subprocess.run(command_get_playlist_title, capture_output=True, text=True)
-                if result_playlist.returncode == 0:
-                    titles.append(result_playlist.stdout.strip())
+            if result_check.returncode == 0:
+                metadata = json.loads(result_check.stdout)
+                if "entries" in metadata:
+                    # URL is a playlist, get the playlist title
+                    playlist_title = metadata.get("title", "unknown playlist title")
+                    titles.append(playlist_title)
                 else:
-                    titles.append("unknown playlist title")
-            else: 
-                command = ["yt-dlp", "--get-title", url]
-                result = subprocess.run(command, capture_output=True, text=True)
-                if result.returncode == 0:
-                    titles.append(result.stdout.strip())
-                else:
-                    titles.append("unknown title")
+                    # URL is a single video, get the video title
+                    command_video = ["yt-dlp", "--get-title", url]
+                    result_video = subprocess.run(command_video, capture_output=True, text=True)
+                    if result_video.returncode == 0:
+                        titles.append(result_video.stdout.strip())
+                    else:
+                        titles.append("unknown title")
+            else:
+                titles.append("unknown title")
         except FileNotFoundError:
-            sys.stdout.write(f"[ERROR][missing]: yt-dlp is not installed or in your PATH\n")
+            sys.stdout.write("[ERROR][missing]: yt-dlp is not installed or in your PATH\n")
+            titles.append("unknown title")
+        except json.JSONDecodeError:
+            sys.stdout.write("[ERROR]: Failed to parse JSON metadata\n")
             titles.append("unknown title")
     return titles
 
