@@ -253,6 +253,8 @@ def main():
     url_file = resolve_path("urls.txt")
     config_file = resolve_path("config.txt")
 
+    urls = read_urls(url_file)
+
     if not urls:
         sys.stdout.write(f"{HEADER}~ no tracks found ~{RESET}\n")
         
