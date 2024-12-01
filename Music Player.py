@@ -253,9 +253,6 @@ def main():
     url_file = resolve_path("urls.txt")
     config_file = resolve_path("config.txt")
 
-    volume = read_file(config_file)
-    urls = read_urls(url_file)
-
     if not urls:
         sys.stdout.write(f"{HEADER}~ no tracks found ~{RESET}\n")
         
@@ -264,6 +261,7 @@ def main():
     try:
         while True:
             volume = read_file(config_file)
+            urls = read_urls(url_file)
             choice = input(f"\n{PROMPT}~ volume: {volume}% ~\n~ ready to play? type -help for commands ~\n> {RESET}")
 
             if choice == "-help":
