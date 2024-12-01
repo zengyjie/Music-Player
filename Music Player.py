@@ -1,9 +1,6 @@
-import os
-import subprocess
-import sys
-import re
-import time
+import os, subprocess, sys, re
 from pathlib import Path
+from time import sleep
 
 from colorama import Fore, Style, init
 from tqdm import tqdm
@@ -56,7 +53,6 @@ https://www.youtube.com/watch?v=Y9q6RYg2Pdg Datawave FM - midfi synthwave radio 
 https://www.youtube.com/watch?v=5-anTj1QrWs Spacesynth FM - space disco radio for galactic exploration
 https://www.youtube.com/watch?v=MGJWPha7rJw Darksynth FM - dark synthwave radio for action gaming
 https://www.youtube.com/watch?v=1PkJmurhQfU EBSM Radio - dark industrial music for cyberpunk clubbing
-https://www.youtube.com/watch?v=GrpwXdspr5Q Porter Robinson - Worlds | Redux
 """
     if not os.path.exists(file_path):
         write_file(file_path, default_value)
@@ -116,72 +112,90 @@ def play_youtube_audio(url, volume):
     except KeyboardInterrupt:
         sys.stdout.write(f"{ERROR}[stopped]: playback interrupted{RESET}\n")
 
+import subprocess
+import sys
+
 def fetch_video_titles(urls):
     titles = []
     for url in urls:
         try:
-            command = ["yt-dlp", "--get-title", url]
-            result = subprocess.run(command, capture_output=True, text=True)
-            if result.returncode == 0:
-                titles.append(result.stdout.strip())
-            else:
-                titles.append("unknown title")
+            command_check_playlist = ["yt-dlp", "--flat-playlist", "--print", "title", url]
+            result_check = subprocess.run(command_check_playlist, capture_output=True, text=True)
+            
+            if result_check.returncode == 0 and "entries" in result_check.stdout.lower():
+                command_get_playlist_title = ["yt-dlp", "--playlist-title", url]
+                result_playlist = subprocess.run(command_get_playlist_title, capture_output=True, text=True)
+                if result_playlist.returncode == 0:
+                    titles.append(result_playlist.stdout.strip())
+                else:
+                    titles.append("unknown playlist title")
+            else: 
+                command = ["yt-dlp", "--get-title", url]
+                result = subprocess.run(command, capture_output=True, text=True)
+                if result.returncode == 0:
+                    titles.append(result.stdout.strip())
+                else:
+                    titles.append("unknown title")
         except FileNotFoundError:
-            sys.stdout.write(f"{ERROR}[missing]: yt-dlp is not installed or in your PATH{RESET}\n")
+            sys.stdout.write(f"[ERROR][missing]: yt-dlp is not installed or in your PATH\n")
             titles.append("unknown title")
     return titles
 
 def clean_title(title):
     return re.sub(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}', '', title).strip()
 
-def add_url(file_path, url):
-    if not url:
-        sys.stdout.write(f"{ERROR}[error]: no URL provided{RESET}\n")
-        return
-    with open(file_path, 'r') as file:
-        if url in file.read():
-            sys.stdout.write(f"{ERROR}[error]: duplicate url{RESET}\n")
-            return
-        
-    print(f"{INFO}[loading]: adding track to list{RESET}\n")
-    title = fetch_video_titles([url])[0]
-
-    if title == "unknown title":
-        reprint_entries(file_path)
-        sys.stdout.write(f"{ERROR}[error]: could not fetch title for the URL: {url}{RESET}\n")
-        time.sleep(1.0)
-        return
-    
-    with open(file_path, "r") as file:
-        file.write(f"{url} {clean_title(title)}\n")
-    reprint_entries(file_path)
-    sys.stdout.write(f"{SUCCESS}[added]: {url} ({title}){RESET}\n")
-
-def remove_url(file_path, entry_number):
-    try:
-        entry_number = int(entry_number)
+def add_url(file_path, urls):
+    for url in urls:
+        if not url:
+            sys.stdout.write(f"{ERROR}[error]: no URL provided{RESET}\n")
+            continue
         with open(file_path, 'r') as file:
-            lines = file.readlines()
-        
-        if entry_number < 1 or entry_number > len(lines):
-            sys.stdout.write(f"{ERROR}[error]: invalid entry number{RESET}\n")
-            return
-        lines.pop(entry_number - 1)
-        with open(file_path, 'w') as file:
-            file.writelines(lines)
+            if url in file.read():
+                sys.stdout.write(f"{ERROR}[error]: duplicate url{RESET}\n")
+                continue
+            
+        print(f"{INFO}[loading]: adding {url} to list{RESET}")
+        title = fetch_video_titles([url])[0]
 
-    except ValueError:
-        sys.stdout.write(f"{ERROR}[error]: invalid number format{RESET}\n")
-        return
-    except FileNotFoundError:
-        sys.stdout.write(f"{ERROR}[error]: file not found{RESET}\n")
-        return
-    except Exception as e:
-        sys.stdout.write(f"{ERROR}[error]: {str(e)}{RESET}\n")
-        return
-    
-    reprint_entries(file_path)
-    sys.stdout.write(f"{SUCCESS}[removed]: track {entry_number}{RESET}\n")
+        if title == "unknown title":
+            reprint_entries(file_path)
+            sys.stdout.write(f"{ERROR}[error]: could not fetch title for the URL: {url}{RESET}\n")
+            sleep(1.0)
+            continue
+        
+        print(url, title)
+        with open(file_path, "a") as file:
+            file.write(f"{url} {clean_title(title)}\n")
+        reprint_entries(file_path)
+        sys.stdout.write(f"{SUCCESS}[added]: {url} ({title}){RESET}\n")
+
+def remove_url(file_path, entry_numbers):
+    entry_numbers.sort(reverse=True)
+    for entry_number in entry_numbers:
+        try:
+            entry_number = int(entry_number)
+            with open(file_path, 'r') as file:
+                lines = file.readlines()
+            
+            if entry_number < 1 or entry_number > len(lines):
+                sys.stdout.write(f"{ERROR}[error]: invalid entry number{RESET}\n")
+                return
+            lines.pop(entry_number - 1)
+            with open(file_path, 'w') as file:
+                file.writelines(lines)
+
+        except ValueError:
+            sys.stdout.write(f"{ERROR}[error]: invalid number format{RESET}\n")
+            return
+        except FileNotFoundError:
+            sys.stdout.write(f"{ERROR}[error]: file not found{RESET}\n")
+            return
+        except Exception as e:
+            sys.stdout.write(f"{ERROR}[error]: {str(e)}{RESET}\n")
+            return
+        
+        reprint_entries(file_path)
+        sys.stdout.write(f"{SUCCESS}[removed]: track {entry_number}{RESET}\n")
 
 
 def reprint_entries(file_path):
@@ -223,6 +237,9 @@ def download_youtube_as_mp3(video_url):
         sys.stdout.write(f"{ERROR}[error]: an unexpected error occurred: {e}{RESET}\n")
 
 def main():
+    print(f"{INFO}Music Player is loading...{RESET}")
+    sleep(2.0)
+
     url_file = resolve_path("urls.txt")
     config_file = resolve_path("config.txt")
 
@@ -241,15 +258,15 @@ def main():
 
             if choice == "-help":
                 sys.stdout.write(f"\n{HEADER}[commands]{RESET}\n")
-                sys.stdout.write(f"{INFO}-help                  : see this menu{RESET}\n")
-                sys.stdout.write(f"{INFO}-play [number]         : play a track{RESET}\n")
-                sys.stdout.write(f"{INFO}CTRL + C               : play a track{RESET}\n")
-                sys.stdout.write(f"{INFO}-add [url]             : add a track{RESET}\n")
-                sys.stdout.write(f"{INFO}-remove [number]       : delete a track by its number{RESET}\n")
-                sys.stdout.write(f"{INFO}-ls                    : show all tracks{RESET}\n")
-                sys.stdout.write(f"{INFO}-volume [number]       : set audio volume (0 to 200){RESET}\n")
-                sys.stdout.write(f"{INFO}-download [url,url(?)] : download tracks as mp3{RESET}\n")
-                sys.stdout.write(f"{INFO}-exit                  : close the program{RESET}\n")
+                sys.stdout.write(f"{INFO}-help                      : see this menu{RESET}\n")
+                sys.stdout.write(f"{INFO}-play [number]             : play a track{RESET}\n")
+                sys.stdout.write(f"{INFO}CTRL + C                   : play a track{RESET}\n")
+                sys.stdout.write(f"{INFO}-add [url]                 : add a track{RESET}\n")
+                sys.stdout.write(f"{INFO}-remove [number,number(?)] : delete a track by its number{RESET}\n")
+                sys.stdout.write(f"{INFO}-ls                        : show all tracks{RESET}\n")
+                sys.stdout.write(f"{INFO}-volume [number]           : set audio volume (0 to 200){RESET}\n")
+                sys.stdout.write(f"{INFO}-download [url,url(?)]     : download tracks as mp3{RESET}\n")
+                sys.stdout.write(f"{INFO}-exit                      : close the program{RESET}\n")
 
             elif choice.startswith("-play"):
                 try:
@@ -266,15 +283,16 @@ def main():
 
             elif choice.startswith("-add"):
                 try:
-                    _, new_url = choice.split(maxsplit=1)
-                    add_url(url_file, new_url)
+                    _, new_urls = choice.split(maxsplit=1)
+                    add_url(url_file, new_urls.split(","))
                 except ValueError:
+                    print(ValueError)
                     sys.stdout.write(f"{ERROR}[error]: provide a URL after -add{RESET}\n")
 
             elif choice.startswith("-remove"):
                 try:
-                    _, entry_number = choice.split()
-                    remove_url(url_file, entry_number)
+                    _, entry_numbers = choice.split()
+                    remove_url(url_file, entry_numbers.split(","))
                 except ValueError:
                     sys.stdout.write(f"{ERROR}[error]: provide a valid number after -remove{RESET}\n")
 
