@@ -110,13 +110,16 @@ def play_youtube_audio(url, volume):
     except KeyboardInterrupt:
         sys.stdout.write(f"{ERROR}[stopped]: playback interrupted{RESET}\n")
 
+def is_playlist(url):
+    command_check = ["yt-dlp", "--flat-playlist", "--dump-single-json", url]
+    result_check = subprocess.run(command_check, capture_output=True, text=True)
+    return result_check
+
 def fetch_video_titles(urls):
     titles = []
     for url in urls:
-        try:
-            command_check = ["yt-dlp", "--flat-playlist", "--dump-single-json", url]
-            result_check = subprocess.run(command_check, capture_output=True, text=True)
-            
+        try:  
+            result_check = is_playlist(url)          
             if result_check.returncode == 0:
                 metadata = json.loads(result_check.stdout)
                 if "entries" in metadata:
@@ -213,23 +216,29 @@ def reprint_entries(file_path):
     display_urls_with_titles(urls)
     if not urls: sys.stdout.write(f"{HEADER}~ no tracks found ~{RESET}\n")
 
-def download_youtube_as_mp3(video_url):
+def download_url(url):
     music_folder = Path.home() / "Music"
     downloads_folder = music_folder / "downloads"
-    downloads_folder.mkdir(parents=True, exist_ok=True)
 
-    output_template = str(downloads_folder / "%(title)s.%(ext)s")
-    
+    if is_playlist(url):
+        playlist_title = fetch_video_titles([url])[0]
+        playlist_folder = downloads_folder / playlist_title
+        playlist_folder.mkdir(parents=True, exist_ok=True)
+        output_template = str(playlist_folder / "%(title)s.%(ext)s")
+    else:
+        downloads_folder.mkdir(parents=True, exist_ok=True)
+        output_template = str(downloads_folder / "%(title)s.%(ext)s")
+
     command = [
         "yt-dlp",
         "--extract-audio",
         "--audio-format", "mp3",
         "--output", output_template,
-        video_url
+        url
     ]
 
     try:
-        sys.stdout.write(f"{INFO}[downloading]: {video_url}{RESET}\n")
+        print(f"{INFO}[downloading]: {url}{RESET}\n")
         
         result = subprocess.run(
             command,
@@ -238,7 +247,10 @@ def download_youtube_as_mp3(video_url):
             stderr=subprocess.DEVNULL
         )
 
-        sys.stdout.write(f"{SUCCESS}[completed]: file saved to {downloads_folder}{RESET}\n")
+        if is_playlist(url):
+            sys.stdout.write(f"{SUCCESS}[completed]: playlist saved to {playlist_folder}{RESET}\n")
+        else:
+            sys.stdout.write(f"{SUCCESS}[completed]: file saved to {downloads_folder}{RESET}\n")
     except subprocess.CalledProcessError as e:
         sys.stdout.write(f"{ERROR}[error]: yt-dlp failed with error code {e.returncode}{RESET}\n")
     except FileNotFoundError:
@@ -344,7 +356,7 @@ def main():
             elif choice.startswith("-download"):
                 _, video_urls = choice.split()
                 for video_url in video_urls.split(","):
-                    download_youtube_as_mp3(video_url)
+                    download_url(video_url)
 
             else:
                 sys.stdout.write(f"{ERROR}[error]: unrecognized command{RESET}\n")
