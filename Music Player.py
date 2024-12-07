@@ -78,6 +78,33 @@ def display_urls_with_titles(urls):
     for i, (url) in enumerate(zip(urls), start=1):
         sys.stdout.write(f"{INFO}{i}: {url[0][1]} ({url[0][0]}){RESET}\n")
 
+def get_track_url(playlist_url, track_number):
+    try:
+        command = ["yt-dlp", "--flat-playlist", "--dump-single-json", playlist_url]
+        result = subprocess.run(command, capture_output=True, text=True)
+
+        if result.returncode == 0:
+            playlist_data = json.loads(result.stdout)
+            entries = playlist_data.get("entries", [])
+
+            if 1 <= track_number <= len(entries):
+                return entries[track_number - 1]["url"]
+            else:
+                sys.stdout.write(f"{ERROR}[error]: track number {track_number} is out of range{RESET}\n")
+                return None
+        else:
+            sys.stdout.write(f"{ERROR}[error]: failed to fetch playlist data{RESET}\n")
+            return None
+    except FileNotFoundError:
+        sys.stdout.write(f"{ERROR}[missing]: yt-dlp is not installed or in your PATH{RESET}\n")
+        return None
+    except json.JSONDecodeError:
+        sys.stdout.write(f"{ERROR}[error]: failed to parse playlist JSON{RESET}\n")
+        return None
+    except Exception as e:
+        sys.stdout.write(f"{ERROR}[error]: unexpected error occurred: {e}{RESET}\n")
+        return None
+
 def play_youtube_audio(url, volume):
     command = [
         "yt-dlp",
@@ -210,10 +237,10 @@ def remove_url(file_path, entry_numbers):
         reprint_entries(file_path)
         sys.stdout.write(f"{SUCCESS}[removed]: track {entry_number}{RESET}\n")
 
-
 def reprint_entries(file_path):
     urls = read_urls(file_path)
     display_urls_with_titles(urls)
+    sys.stdout.write("\n")
     if not urls: sys.stdout.write(f"{HEADER}~ no tracks found ~{RESET}\n")
 
 def download_url(url):
@@ -282,6 +309,7 @@ def main():
                 sys.stdout.write(f"\n{HEADER}[commands]{RESET}\n")
                 sys.stdout.write(f"{INFO}-help                      : see this menu{RESET}\n")
                 sys.stdout.write(f"{INFO}-play [number]             : play a track{RESET}\n")
+                sys.stdout.write(f"{INFO}-play [number.number]      : play a track from a playlist{RESET}\n")
                 sys.stdout.write(f"{INFO}CTRL + C                   : play a track{RESET}\n")
                 sys.stdout.write(f"{INFO}-add [url]                 : add a track{RESET}\n")
                 sys.stdout.write(f"{INFO}-remove [number,number(?)] : delete a track by its number{RESET}\n")
@@ -294,13 +322,24 @@ def main():
             elif choice.startswith("-play"):
                 try:
                     _, entry_number = choice.split()
-                    entry_number = int(entry_number)
-                    if 1 <= entry_number <= len(urls):
-                        selected_url = urls[entry_number - 1][0]
-                        sys.stdout.write(f"{SUCCESS}[selecting]: playing track {entry_number}{RESET}\n")
-                        play_youtube_audio(selected_url, volume)
+                    if "." in entry_number:
+                        playlist_number, track_number = entry_number.split(".")
+                        playlist_number = int(playlist_number)
+                        track_number = int(track_number)
+                        if 1 <= playlist_number <= len(urls):
+                            selected_url = get_track_url(urls[playlist_number - 1][0], track_number)
+                            sys.stdout.write(f"{SUCCESS}[selecting]: playing track {playlist_number}.{track_number}{RESET}\n")
+                            play_youtube_audio(selected_url, volume)
+                        else:
+                            sys.stdout.write(f"{ERROR}[error]: invalid track number{RESET}\n")
                     else:
-                        sys.stdout.write(f"{ERROR}[error]: invalid track number{RESET}\n")
+                        entry_number = int(entry_number)
+                        if 1 <= entry_number <= len(urls):
+                            selected_url = urls[entry_number - 1][0]
+                            sys.stdout.write(f"{SUCCESS}[selecting]: playing track {entry_number}{RESET}\n")
+                            play_youtube_audio(selected_url, volume)
+                        else:
+                            sys.stdout.write(f"{ERROR}[error]: invalid track number{RESET}\n")
                 except ValueError:
                     sys.stdout.write(f"{ERROR}[error]: use a valid number after -play{RESET}\n")
 
