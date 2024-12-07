@@ -240,7 +240,6 @@ def remove_url(file_path, entry_numbers):
 def reprint_entries(file_path):
     urls = read_urls(file_path)
     display_urls_with_titles(urls)
-    sys.stdout.write("\n")
     if not urls: sys.stdout.write(f"{HEADER}~ no tracks found ~{RESET}\n")
 
 def download_url(url):
