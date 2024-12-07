@@ -3,6 +3,7 @@
 |---------------------------------|------------------------------------------------|
 | `-help`                         | See this menu                                  |
 | `-play [number]`                | Play a track                                   |
+| `-play [number.number]`         | Play a track from a playlist                   |
 | `CTRL + C`                      | Play a track                                   |
 | `-add [url]`                    | Add a track                                    |
 | `-remove [number]`              | Delete a track by its number                   |
