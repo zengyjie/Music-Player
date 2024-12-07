@@ -11,4 +11,5 @@
 | `-volume [number]`              | Set audio volume (0 to 200)                    |
 | `-download [url,url(?)]`        | Download tracks as mp3                         |
 | `-exit`                         | Close the program                              |
+
 *tracks downloaded into C:\Users\User\Music\downloads
