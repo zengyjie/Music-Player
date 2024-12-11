@@ -273,10 +273,8 @@ def download_url(url):
             stderr=subprocess.DEVNULL
         )
 
-        if is_playlist(url):
-            sys.stdout.write(f"{SUCCESS}[completed]: playlist saved to {playlist_folder}{RESET}\n")
-        else:
-            sys.stdout.write(f"{SUCCESS}[completed]: file saved to {downloads_folder}{RESET}\n")
+        
+        sys.stdout.write(f"{SUCCESS}[completed]: download saved to {downloads_folder}{RESET}\n")
     except subprocess.CalledProcessError as e:
         sys.stdout.write(f"{ERROR}[error]: yt-dlp failed with error code {e.returncode}{RESET}\n")
     except FileNotFoundError:
