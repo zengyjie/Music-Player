@@ -241,18 +241,19 @@ def reprint_entries(file_path):
     urls = read_urls(file_path)
     display_urls_with_titles(urls)
     if not urls: sys.stdout.write(f"{HEADER}~ no tracks found ~{RESET}\n")
-
+    
 def download_url(url):
     music_folder = Path.home() / "Music"
     downloads_folder = music_folder / "downloads"
+    downloads_folder.mkdir(parents=True, exist_ok=True)
 
-    if is_playlist(url):
-        playlist_title = fetch_video_titles([url])[0]
-        playlist_folder = downloads_folder / playlist_title
+    download_title = fetch_video_titles([url])[0]
+
+    if download_title.startswith("[playlist]"):
+        playlist_folder = downloads_folder / download_title
         playlist_folder.mkdir(parents=True, exist_ok=True)
         output_template = str(playlist_folder / "%(title)s.%(ext)s")
     else:
-        downloads_folder.mkdir(parents=True, exist_ok=True)
         output_template = str(downloads_folder / "%(title)s.%(ext)s")
 
     command = [
@@ -272,7 +273,6 @@ def download_url(url):
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
-
         
         sys.stdout.write(f"{SUCCESS}[completed]: download saved to {downloads_folder}{RESET}\n")
     except subprocess.CalledProcessError as e:
