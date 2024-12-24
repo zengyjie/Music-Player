@@ -1,4 +1,4 @@
-import os, subprocess, sys, re, json
+import os, subprocess, sys, re, json, shutil
 from pathlib import Path
 from time import sleep
 
@@ -12,6 +12,10 @@ SUCCESS = Fore.CYAN
 PROMPT = Fore.LIGHTMAGENTA_EX  
 ERROR = Fore.RED       
 RESET = Style.RESET_ALL
+
+music_folder = Path.home() / "Music"
+downloads_folder = music_folder / "downloads"
+downloads_folder.mkdir(parents=True, exist_ok=True)
 
 def get_script_directory():
     if getattr(sys, 'frozen', False):  
@@ -242,45 +246,68 @@ def reprint_entries(file_path):
     display_urls_with_titles(urls)
     if not urls: sys.stdout.write(f"{HEADER}~ no tracks found ~{RESET}\n")
     
-def download_url(url):
-    music_folder = Path.home() / "Music"
-    downloads_folder = music_folder / "downloads"
-    downloads_folder.mkdir(parents=True, exist_ok=True)
+def download_url(url, onefile=False):
+    global music_folder, downloads_folder
 
     download_title = fetch_video_titles([url])[0]
+    is_playlist = download_title.startswith("[playlist]")
 
-    if download_title.startswith("[playlist]"):
-        playlist_folder = downloads_folder / download_title
-        playlist_folder.mkdir(parents=True, exist_ok=True)
-        output_template = str(playlist_folder / "%(title)s.%(ext)s")
+    def get_unique_foldername(base_path, base_name="playlist"):
+        folder = base_path / base_name
+        counter = 1
+        while folder.exists():
+            folder = base_path / f"{base_name}_{counter}"
+            counter += 1
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
+    
+    if is_playlist:
+        target_folder = get_unique_foldername(downloads_folder, download_title) if onefile else downloads_folder / download_title
+        target_folder.mkdir(parents=True, exist_ok=True)
+        output_template = str(target_folder / "%(title)s.%(ext)s")
     else:
         output_template = str(downloads_folder / "%(title)s.%(ext)s")
 
     command = [
-        "yt-dlp",
-        "--extract-audio",
-        "--audio-format", "mp3",
-        "--output", output_template,
-        url
+        "yt-dlp", "--extract-audio", "--audio-format", "mp3",
+        "--output", output_template, url
     ]
 
     try:
-        print(f"{INFO}[downloading]: {url}{RESET}\n")
-        
-        result = subprocess.run(
-            command,
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
-        
-        sys.stdout.write(f"{SUCCESS}[completed]: download saved to {downloads_folder}{RESET}\n")
+        download_type = "playlist as onefile" if is_playlist and onefile else "playlist" if is_playlist else "track"
+        print(f"{INFO}[downloading {download_type}]: {url}{RESET}")
+        subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if is_playlist and onefile:
+            target_folder = Path(str(target_folder))
+            mp3_files = sorted(str(mp3) for mp3 in target_folder.glob("*.mp3"))
+            
+            if mp3_files:
+                merged_file = str(downloads_folder / f"{download_title}.mp3")
+                merge_mp3s(mp3_files, merged_file)
+                sys.stdout.write(f"{SUCCESS}[completed]: Merged playlist saved to {merged_file}{RESET}\n")
+                shutil.rmtree(target_folder)
+                sys.stdout.write(f"{INFO}[cleanup]: Temporary folder {target_folder} deleted{RESET}\n")
+            else:
+                sys.stdout.write(f"{ERROR}[error]: No MP3 files found to merge in {target_folder}{RESET}\n")
+        else:
+            sys.stdout.write(f"{SUCCESS}[completed]: Download saved to {target_folder if is_playlist else downloads_folder}{RESET}\n")
+
     except subprocess.CalledProcessError as e:
         sys.stdout.write(f"{ERROR}[error]: yt-dlp failed with error code {e.returncode}{RESET}\n")
     except FileNotFoundError:
         sys.stdout.write(f"{ERROR}[missing]: yt-dlp is not installed or in your PATH{RESET}\n")
     except Exception as e:
-        sys.stdout.write(f"{ERROR}[error]: an unexpected error occurred: {e}{RESET}\n")
+        sys.stdout.write(f"{ERROR}[error]: An unexpected error occurred: {e}{RESET}\n")
+
+def merge_mp3s(mp3_files, output_file):
+    try:
+        command = ["ffmpeg", "-y", "-i", f"concat:{'|'.join(mp3_files)}", "-acodec", "libmp3lame", output_file]
+        subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print(f"{SUCCESS}[completed]: Merged MP3 saved to {output_file}{RESET}")
+    except subprocess.CalledProcessError as e:
+        print(f"{ERROR}[error]: Failed to merge MP3s with error code {e.returncode}{RESET}")
+    except FileNotFoundError:
+        print(f"{ERROR}[missing]: ffmpeg is not installed or in your PATH{RESET}")
 
 def main():
     print(f"{INFO}Music Player is loading...{RESET}")
@@ -288,6 +315,8 @@ def main():
 
     url_file = resolve_path("urls.txt")
     config_file = resolve_path("config.txt")
+    global music_folder
+    global downloads_folder
 
     urls = read_urls(url_file)
 
@@ -300,23 +329,40 @@ def main():
         while True:
             volume = read_file(config_file)
             urls = read_urls(url_file)
-            choice = input(f"\n{PROMPT}~ volume: {volume}% ~\n~ ready to play? type -help for commands ~\n> {RESET}")
+            choice = input(f"\n{PROMPT}~ volume: {volume}% ~\n~ ready to play? type help for commands ~\n> {RESET}")
 
-            if choice == "-help":
+            def parse_flags(choice, valid_flags):
+                parts = choice.split()
+                flags = set()
+                urls = None
+
+                for i, part in enumerate(parts):
+                    if part in valid_flags:
+                        flags.add(part)
+                    elif part.startswith("-"):
+                        sys.stdout.write(f"{ERROR}[error]: invalid flag '{part}'{RESET}\n")
+
+                return flags
+            
+            if choice == "help":
                 sys.stdout.write(f"\n{HEADER}[commands]{RESET}\n")
-                sys.stdout.write(f"{INFO}-help                      : see this menu{RESET}\n")
-                sys.stdout.write(f"{INFO}-play [number]             : play a track{RESET}\n")
-                sys.stdout.write(f"{INFO}-play [number.number]      : play a track from a playlist{RESET}\n")
-                sys.stdout.write(f"{INFO}CTRL + C                   : play a track{RESET}\n")
-                sys.stdout.write(f"{INFO}-add [url]                 : add a track{RESET}\n")
-                sys.stdout.write(f"{INFO}-remove [number,number(?)] : delete a track by its number{RESET}\n")
-                sys.stdout.write(f"{INFO}-ls                        : show all tracks{RESET}\n")
-                sys.stdout.write(f"{INFO}-ls [number]               : show all tracks in a playlist{RESET}\n")
-                sys.stdout.write(f"{INFO}-volume [number]           : set audio volume (0 to 200){RESET}\n")
-                sys.stdout.write(f"{INFO}-download [url,url(?)]     : download tracks as mp3{RESET}\n")
-                sys.stdout.write(f"{INFO}-exit                      : close the program{RESET}\n")
+                sys.stdout.write(f"{INFO}help                      : see this menu{RESET}\n")
+                sys.stdout.write(f"{INFO}play [number]             : play a track{RESET}\n")
+                sys.stdout.write(f"{INFO}play [number.number]      : play a track from a playlist{RESET}\n")
+                sys.stdout.write(f"{INFO}CTRL + C                  : play a track{RESET}\n")
+                sys.stdout.write(f"{INFO}add [url]                 : add a track{RESET}\n")
+                sys.stdout.write(f"{INFO}remove [number,number(?)] : delete a track by its number{RESET}\n")
+                sys.stdout.write(f"{INFO}ls                        : show all tracks{RESET}\n")
+                sys.stdout.write(f"{INFO}ls [number]               : show all tracks in a playlist{RESET}\n")
+                sys.stdout.write(f"{INFO}volume [number]           : set audio volume (0 to 200){RESET}\n")
+                sys.stdout.write(f"{INFO}download [url,url(?)]     : download tracks as mp3{RESET}\n")
+                sys.stdout.write(f"{INFO}exit                      : close the program{RESET}\n")
+                sys.stdout.write(f"\n{HEADER}[flags]{RESET}\n")
+                sys.stdout.write(f"{INFO}-onefile                  : downloads a playlist as one file and/or joins other tracks provided{RESET}\n")
 
-            elif choice.startswith("-play"):
+
+
+            elif choice.startswith("play"):
                 try:
                     _, entry_number = choice.split()
                     if "." in entry_number:
@@ -340,7 +386,7 @@ def main():
                 except ValueError:
                     sys.stdout.write(f"{ERROR}[error]: use a valid number after -play{RESET}\n")
 
-            elif choice.startswith("-add"):
+            elif choice.startswith("add"):
                 try:
                     _, new_urls = choice.split(maxsplit=1)
                     add_url(url_file, new_urls.split(","))
@@ -348,15 +394,15 @@ def main():
                     print(ValueError)
                     sys.stdout.write(f"{ERROR}[error]: provide a URL after -add{RESET}\n")
 
-            elif choice.startswith("-remove"):
+            elif choice.startswith("remove"):
                 try:
                     _, entry_numbers = choice.split()
                     remove_url(url_file, entry_numbers.split(","))
                 except ValueError:
                     sys.stdout.write(f"{ERROR}[error]: provide a valid number after -remove{RESET}\n")
 
-            elif choice.startswith("-ls"):
-                if choice == "-ls":
+            elif choice.startswith("ls"):
+                if choice == "ls":
                     reprint_entries(url_file)
                 else:
                     try:
@@ -374,7 +420,7 @@ def main():
                     except ValueError:
                         sys.stdout.write(f"{ERROR}[error]: provide a valid number after -ls{RESET}\n")
 
-            elif choice.startswith("-volume"):
+            elif choice.startswith("volume"):
                 try:
                     _, new_volume = choice.split()
                     if 0 <= int(new_volume) <= 200:
@@ -385,14 +431,40 @@ def main():
                 except ValueError:
                     sys.stdout.write(f"{ERROR}[error]: enter a valid number{RESET}\n")
 
-            elif choice == "-exit":
+            elif choice == "exit":
                 sys.stdout.write(f"{SUCCESS}[exit]: shutting down{RESET}\n")
                 break
 
-            elif choice.startswith("-download"):
-                _, video_urls = choice.split()
-                for video_url in video_urls.split(","):
-                    download_url(video_url)
+            elif choice.startswith("download"):
+                video_urls = choice.split()[-1].split(",")
+                onefile = parse_flags(choice, {"-onefile"}) and (len(video_urls) > 1 or fetch_video_titles([video_urls[0]])[0].startswith("[playlist]"))
+                mp3_files = []
+
+                for video_url in video_urls:
+                    if onefile:
+                        output_file = downloads_folder / f"{fetch_video_titles([video_url])[0]}.mp3"
+                        download_url(video_url, onefile=True)
+                        mp3_files.append(str(output_file))
+                    else:
+                        download_url(video_url)
+                
+                def get_unique_filename(folder, base_name="playlist", extension=".mp3"):
+                    counter = 1
+                    unique_name = folder / f"{base_name}{extension}"
+                    while unique_name.exists():
+                        unique_name = folder / f"{base_name}_{counter}{extension}"
+                        counter += 1
+                    return unique_name
+                
+                if onefile and not len(video_urls) == 1:
+                    merged_playlist = get_unique_filename(downloads_folder)
+                    merge_mp3s(mp3_files, str(merged_playlist))
+                    try:
+                        for mp3 in mp3_files:
+                            Path(mp3).unlink()
+                        sys.stdout.write(f"{INFO}[cleanup]: Temporary files and folder removed{RESET}\n")
+                    except Exception as e:
+                        sys.stdout.write(f"{ERROR}[error]: Failed to clean up temporary files: {e}{RESET}\n")
 
             else:
                 sys.stdout.write(f"{ERROR}[error]: unrecognized command{RESET}\n")

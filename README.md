@@ -12,4 +12,9 @@
 | `-download [url,url(?)]`        | Download tracks as mp3                         |
 | `-exit`                         | Close the program                              |
 
+
+| Flag                            | Description                                    |
+|---------------------------------|------------------------------------------------|
+| `-onefile`                      | Downloads as one file                          |
+
 *tracks downloaded into C:\Users\User\Music\downloads
