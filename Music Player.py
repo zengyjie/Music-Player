@@ -1,4 +1,4 @@
-import os, subprocess, sys, re, json, shutil, win32com.client
+import os, subprocess, sys, re, json, shutil
 from pathlib import Path
 from time import sleep
 
@@ -258,7 +258,12 @@ def download_url(url, onefile=False):
         while folder.exists():
             folder = base_path / f"{base_name}_{counter}"
             counter += 1
-        folder.mkdir(parents=True, exist_ok=True)
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+        except:
+            sys.stdout.write(f"{ERROR}[error]: video name invalid{RESET}\n")
+            sys.stdout.write(f"{INFO}[default]: using 'placeholder'{RESET}\n")
+            folder = base_path / 'placeholder'
         return folder
     
     if is_playlist:
@@ -309,56 +314,6 @@ def merge_mp3s(mp3_files, output_file):
     except FileNotFoundError:
         print(f"{ERROR}[missing]: ffmpeg is not installed or in your PATH{RESET}")
 
-'''
-def copy_music_to_mtp(local_music_dir, device_name):
-    shell = win32com.client.Dispatch("Shell.Application")
-    devices = shell.NameSpace(17)
-    
-    phone = None
-    for item in devices.Items():
-        if device_name.lower() in item.Name.lower():
-            phone = item
-            break
-
-    if not phone:
-        sys.stdout.write(f"{ERROR}[error]: Device '{device_name}' not found!{RESET}\n")
-        return
-
-    for folder in phone.GetFolder.Items():
-        if folder.Name.lower() == "internal storage":
-            for subfolder in folder.GetFolder.Items():
-                if subfolder.Name.lower() == "music":
-                    music_folder = subfolder
-
-    if not music_folder:
-        sys.stdout.write(f"{ERROR}[error]: Folder 'Internal Storage/Music' not found on '{device_name}'!{RESET}\n")
-        return
-
-    def create_directory_on_device(path, folder_name):
-        if not any(folder.Name.lower() == folder_name.lower() for folder in path.GetFolder.Items()):
-            path.GetFolder.Items().Add(folder_name)
-            sys.stdout.write(f"[DEBUG] Created folder: {folder_name} on {device_name}\n")
-
-    for root, dirs, files in os.walk(local_music_dir):
-        relative_path = os.path.relpath(root, local_music_dir)
-        
-        target_dir = music_folder
-        if relative_path != ".":
-            subfolders = relative_path.split(os.sep)
-            for subfolder in subfolders:
-                create_directory_on_device(target_dir, subfolder)
-                target_dir = next(folder for folder in target_dir.GetFolder.Items() if folder.Name.lower() == subfolder.lower())
-
-        for file in files:
-            source_path = os.path.join(root, file)
-            try:
-                sys.stdout.write(f"[DEBUG] Attempting to copy {file}...\n")
-                shell.NameSpace(target_dir).CopyHere(source_path)
-                sys.stdout.write(f"[SUCCESS] Copied: {file} → {device_name}\n")
-            except Exception as e:
-                sys.stdout.write(f"[ERROR] Failed to copy '{file}': {e}\n")
-'''
-
 def main():
     print(f"{INFO}Music Player is loading...{RESET}")
     sleep(2.0)
@@ -406,7 +361,6 @@ def main():
                 sys.stdout.write(f"{INFO}ls [number]               : show all tracks in a playlist{RESET}\n")
                 sys.stdout.write(f"{INFO}volume [number]           : set audio volume (0 to 200){RESET}\n")
                 sys.stdout.write(f"{INFO}download [url,url(?)]     : download tracks as mp3{RESET}\n")
-                #sys.stdout.write(f"{INFO}copy [device name]        : copies tracks in the computer's music directory to a connected mtp{RESET}\n")
                 sys.stdout.write(f"{INFO}exit                      : close the program{RESET}\n")
                 sys.stdout.write(f"\n{HEADER}[flags]{RESET}\n")
                 sys.stdout.write(f"{INFO}-onefile                  : downloads a playlist as one file and/or joins other tracks provided{RESET}\n")
@@ -510,20 +464,6 @@ def main():
                         sys.stdout.write(f"{INFO}[cleanup]: Temporary files and folder removed{RESET}\n")
                     except Exception as e:
                         sys.stdout.write(f"{ERROR}[error]: Failed to clean up temporary files: {e}{RESET}\n")
-
-            #elif choice.startswith("copy"):
-            #    try:
-            #        device_name = ' '.join(choice.split()[1:])
-            #        local_music_dir = os.path.expanduser("~/Music")
-
-            #        sys.stdout.write(f"{INFO}[copying]: Copying music to '{device_name}'{RESET}\n")
-
-            #        copy_music_to_mtp(local_music_dir, device_name)
-
-            #    except IndexError:
-            #        sys.stdout.write(f"{ERROR}[error]: Please specify a valid device name after 'copy'{RESET}\n")
-            #    except Exception as e:
-            #        sys.stdout.write(f"{ERROR}[error]: {e}{RESET}\n")
                  
             elif choice == "exit":
                 sys.stdout.write(f"{SUCCESS}[exit]: shutting down{RESET}\n")
