@@ -245,25 +245,31 @@ def reprint_entries(file_path):
     urls = read_urls(file_path)
     display_urls_with_titles(urls)
     if not urls: sys.stdout.write(f"{HEADER}~ no tracks found ~{RESET}\n")
-    
+
+download_title = ""    
 def download_url(url, onefile=False):
-    global music_folder, downloads_folder
+    global music_folder, downloads_folder, download_title
 
     download_title = fetch_video_titles([url])[0]
     is_playlist = download_title.startswith("[playlist]")
 
     def get_unique_foldername(base_path, base_name="playlist"):
+        global download_title
+
         folder = base_path / base_name
         counter = 1
         while folder.exists():
             folder = base_path / f"{base_name}_{counter}"
             counter += 1
+
         try:
             folder.mkdir(parents=True, exist_ok=True)
         except:
             sys.stdout.write(f"{ERROR}[error]: video name invalid{RESET}\n")
             sys.stdout.write(f"{INFO}[default]: using 'placeholder'{RESET}\n")
-            folder = base_path / 'placeholder'
+            folder = base_path / "placeholder"
+            download_title = "placeholder"
+
         return folder
     
     if is_playlist:
@@ -308,7 +314,6 @@ def merge_mp3s(mp3_files, output_file):
     try:
         command = ["ffmpeg", "-y", "-i", f"concat:{'|'.join(mp3_files)}", "-acodec", "libmp3lame", output_file]
         subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        print(f"{SUCCESS}[completed]: Merged MP3 saved to {output_file}{RESET}")
     except subprocess.CalledProcessError as e:
         print(f"{ERROR}[error]: Failed to merge MP3s with error code {e.returncode}{RESET}")
     except FileNotFoundError:
