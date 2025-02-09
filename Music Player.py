@@ -392,7 +392,7 @@ def main():
                         else:
                             sys.stdout.write(f"{ERROR}[error]: invalid track number{RESET}\n")
                 except ValueError:
-                    sys.stdout.write(f"{ERROR}[error]: use a valid number after -play{RESET}\n")
+                    sys.stdout.write(f"{ERROR}[error]: use a valid number after play{RESET}\n")
 
             elif choice.startswith("add"):
                 try:
