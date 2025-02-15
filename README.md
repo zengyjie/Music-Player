@@ -15,6 +15,6 @@
 
 | Flag                            | Description                                                       |
 |---------------------------------|-------------------------------------------------------------------|
-| `-onefile`                      | Downloads as one file                                             |
+| `-onefile`                      | Downloads playlists as one file                                   |
 
 *tracks downloaded into C:\Users\User\Music\downloads

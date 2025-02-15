@@ -275,7 +275,7 @@ def download_url(url, onefile=False):
     if is_playlist:
         target_folder = get_unique_foldername(downloads_folder, download_title) if onefile else downloads_folder / download_title
         target_folder.mkdir(parents=True, exist_ok=True)
-        output_template = str(target_folder / "%(title)s.%(ext)s")
+        output_template = str(target_folder / "track%(playlist_index)03d.%(ext)s") if onefile else str(target_folder / "%(title)s.%(ext)s")
     else:
         output_template = str(downloads_folder / "%(title)s.%(ext)s")
 
