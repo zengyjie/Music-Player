@@ -321,7 +321,6 @@ def merge_mp3s(mp3_files, output_file):
 
 def main():
     print(f"{INFO}Music Player is loading...{RESET}")
-    sleep(2.0)
 
     url_file = resolve_path("urls.txt")
     config_file = resolve_path("config.txt")
@@ -482,3 +481,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+#download -onefile https://www.youtube.com/playlist?list=PLPLVLijJpJnmTXQkp4gXYDVzGOfg-mHy9,
